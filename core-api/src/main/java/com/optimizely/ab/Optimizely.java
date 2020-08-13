@@ -376,14 +376,15 @@ public class Optimizely implements AutoCloseable {
             return false;
         }
 
-        return isFeatureEnabled(projectConfig, featureKey, userId, attributes);
+        return isFeatureEnabled(projectConfig, featureKey, userId, attributes, true);
     }
 
     @Nonnull
     private Boolean isFeatureEnabled(@Nonnull ProjectConfig projectConfig,
                                      @Nonnull String featureKey,
                                      @Nonnull String userId,
-                                     @Nonnull Map<String, ?> attributes) {
+                                     @Nonnull Map<String, ?> attributes,
+                                     boolean sendImpression) {
         if (featureKey == null) {
             logger.warn("The featureKey parameter must be nonnull.");
             return false;
@@ -406,12 +407,14 @@ public class Optimizely implements AutoCloseable {
 
         if (featureDecision.variation != null) {
             if (featureDecision.decisionSource.equals(FeatureDecision.DecisionSource.FEATURE_TEST)) {
-                sendImpression(
-                    projectConfig,
-                    featureDecision.experiment,
-                    userId,
-                    copiedAttributes,
-                    featureDecision.variation);
+                if (sendImpression) {
+                    sendImpression(
+                        projectConfig,
+                        featureDecision.experiment,
+                        userId,
+                        copiedAttributes,
+                        featureDecision.variation);
+                }
                 decisionSource = featureDecision.decisionSource;
                 sourceInfo = new FeatureTestSourceInfo(featureDecision.experiment.getKey(), featureDecision.variation.getKey());
             } else {
@@ -747,6 +750,20 @@ public class Optimizely implements AutoCloseable {
      * return Empty List.
      */
     public List<String> getEnabledFeatures(@Nonnull String userId, @Nonnull Map<String, ?> attributes) {
+        return getEnabledFeatures(userId, attributes, true);
+    }
+
+    /**
+     * Get the list of features that are enabled for the user.
+     * TODO revisit this method. Calling this as-is can dramatically increase visitor impression counts.
+     *
+     * @param userId         The ID of the user.
+     * @param attributes     The user's attributes.
+     * @param sendImpression Whether or not send an impression.
+     * @return List of the feature keys that are enabled for the user if the userId is empty it will
+     * return Empty List.
+     */
+    public List<String> getEnabledFeatures(@Nonnull String userId, @Nonnull Map<String, ?> attributes, boolean sendImpression) {
         List<String> enabledFeaturesList = new ArrayList<String>();
         if (!validateUserId(userId)) {
             return enabledFeaturesList;
@@ -761,7 +778,7 @@ public class Optimizely implements AutoCloseable {
         Map<String, ?> copiedAttributes = copyAttributes(attributes);
         for (FeatureFlag featureFlag : projectConfig.getFeatureFlags()) {
             String featureKey = featureFlag.getKey();
-            if (isFeatureEnabled(projectConfig, featureKey, userId, copiedAttributes))
+            if (isFeatureEnabled(projectConfig, featureKey, userId, copiedAttributes, sendImpression))
                 enabledFeaturesList.add(featureKey);
         }
 
